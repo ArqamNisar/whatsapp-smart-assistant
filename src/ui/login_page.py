@@ -12,8 +12,9 @@ class LoginPage(ctk.CTkFrame):
         self.on_success_callback = on_success_callback
         
         # Center card frame
-        card = ctk.CTkFrame(self, fg_color="#1e293b", corner_radius=24, border_width=1, border_color="#334155")
-        card.place(relx=0.5, rely=0.5, anchor="center", width=450, height=520)
+        card = ctk.CTkFrame(self, fg_color="#1e293b", corner_radius=24, border_width=1, border_color="#334155", width=450, height=520)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        card.pack_propagate(False)
         
         # Header / Title
         title_label = ctk.CTkLabel(
