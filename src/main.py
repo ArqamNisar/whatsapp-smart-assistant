@@ -1,90 +1,107 @@
-import flet as ft
+import customtkinter as ctk
+import threading
 import time
 from whatsapp_client import WhatsAppBusinessClient
 from ui.login_page import LoginPage
 from ui.dashboard_page import DashboardPage
 
-def main(page: ft.Page):
-    # App Window settings
-    page.title = "WhatsApp Smart Assistant Console"
-    page.window_width = 950
-    page.window_height = 700
-    page.window_min_width = 850
-    page.window_min_height = 600
-    page.window_resizable = True
-    page.padding = 0
-    page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#0f172a"
+class App(ctk.CTk):
+    def __init__(self):
+        super().__init__()
 
-    # Initialize client
-    client = WhatsAppBusinessClient()
+        # Configure window
+        self.title("WhatsApp Smart Assistant Console")
+        self.geometry("950x700")
+        self.minsize(850, 600)
+        
+        # Set default theme
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
 
-    # Loading screen layout while verifying existing credentials on startup
-    loading_screen = ft.Container(
-        expand=True,
-        alignment=ft.alignment.center,
-        gradient=ft.LinearGradient(
-            begin=ft.alignment.top_left,
-            end=ft.alignment.bottom_right,
-            colors=["#0f172a", "#1e1b4b"]
-        ),
-        content=ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER,
-            spacing=20,
-            controls=[
-                ft.ProgressRing(color="#10b981", width=50, height=50, stroke_width=4),
-                ft.Text("Checking saved API credentials...", size=14, color="#94a3b8")
-            ]
+        # Initialize WhatsApp client
+        self.client = WhatsAppBusinessClient()
+
+        # Current view frame tracker
+        self.current_view = None
+
+        # Build initial Loading View
+        self.show_loading_view()
+
+        # Check credentials in background
+        threading.Thread(target=self.check_saved_credentials, daemon=True).start()
+
+    def clear_current_view(self):
+        if self.current_view is not None:
+            self.current_view.destroy()
+            self.current_view = None
+
+    def show_loading_view(self):
+        self.clear_current_view()
+        
+        # Loading Frame
+        self.current_view = ctk.CTkFrame(self, fg_color="#0f172a")
+        self.current_view.pack(fill="both", expand=True)
+
+        # Centered container
+        container = ctk.CTkFrame(self.current_view, fg_color="transparent")
+        container.place(relx=0.5, rely=0.5, anchor="center")
+
+        loading_label = ctk.CTkLabel(
+            container,
+            text="Checking saved API credentials...",
+            font=ctk.CTkFont(family="Inter", size=14),
+            text_color="#94a3b8"
         )
-    )
+        loading_label.pack(pady=(0, 20))
 
-    # Put the loading screen initially
-    page.add(loading_screen)
-    page.update()
-
-    def show_login_page():
-        page.controls.clear()
-        login_view = LoginPage(
-            page=page,
-            client=client,
-            on_success_callback=show_dashboard_page
+        progress = ctk.CTkProgressBar(
+            container,
+            orientation="horizontal",
+            mode="indeterminate",
+            fg_color="#1e293b",
+            progress_color="#10b981",
+            width=250,
+            height=6
         )
-        page.add(login_view)
-        page.update()
+        progress.pack()
+        progress.start()
 
-    def show_dashboard_page(verified_info):
-        page.controls.clear()
-        dashboard_view = DashboardPage(
-            page=page,
-            client=client,
+    def show_login_page(self):
+        self.clear_current_view()
+        self.current_view = LoginPage(
+            parent=self,
+            client=self.client,
+            on_success_callback=self.show_dashboard_page
+        )
+        self.current_view.pack(fill="both", expand=True)
+
+    def show_dashboard_page(self, verified_info):
+        self.clear_current_view()
+        self.current_view = DashboardPage(
+            parent=self,
+            client=self.client,
             verified_info=verified_info,
-            on_logout_callback=show_login_page
+            on_logout_callback=self.show_login_page
         )
-        page.add(dashboard_view)
-        page.update()
+        self.current_view.pack(fill="both", expand=True)
 
-    # Startup validation routing
-    def check_saved_credentials():
-        if client.access_token and client.phone_number_id and client.business_account_id:
-            # Try to verify stored credentials
-            success, result = client.verify_credentials(
-                client.access_token,
-                client.phone_number_id,
-                client.business_account_id
+    def check_saved_credentials(self):
+        # Simulate check delay for visual transition
+        time.sleep(1)
+        
+        if self.client.access_token and self.client.phone_number_id and self.client.business_account_id:
+            success, result = self.client.verify_credentials(
+                self.client.access_token,
+                self.client.phone_number_id,
+                self.client.business_account_id
             )
             if success:
-                show_dashboard_page(result)
+                self.after(0, self.show_dashboard_page, result)
             else:
-                # Credentials exist but failed check (e.g. expired token)
-                show_login_page()
+                self.after(0, self.show_login_page)
         else:
-            # No credentials stored
-            show_login_page()
-
-    # Run check in background to prevent startup freeze
-    import threading
-    threading.Thread(target=check_saved_credentials, daemon=True).start()
+            self.after(0, self.show_login_page)
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    app = App()
+    app.mainloop()
